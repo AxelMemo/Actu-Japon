@@ -64,7 +64,6 @@ def get_articles():
 def main():
     data = get_articles()
     src_list = sorted(list(set(a['s'] for a in data)))
-    # On récupère toutes les dates uniques et on les trie (plus récente en premier)
     date_list = sorted(list(set(a['dt'] for a in data)), reverse=True)
     
     with open("index.html", "w", encoding="utf-8") as f:
@@ -74,20 +73,19 @@ def main():
         f.write("<div class='header'><h1>🇯🇵 Japan News Raw</h1>")
         f.write("<input type='text' id='q' placeholder='Rechercher...' style='width:100%;padding:12px;border-radius:8px;border:1px solid #ddd;box-sizing:border-box' onkeyup='f()'>")
         
-        # Section Outils
         f.write("<div style='margin-top:10px'><button class='btn btn-util' onclick='mass(true)'>TOUT COCHER</button><button class='btn btn-util' onclick='mass(false)'>TOUT DÉCOCHER</button></div>")
         
-        # Section Journaux
         f.write("<span class='label'>JOURNAUX :</span><div>")
         for s in src_list: 
-            f.write(f<button class='btn active src-b' data-s='{s}' onclick='t(\"{s}\",this)'>{s.upper()}</button>")
+            # Correction ici : ajout du guillemet f"
+            f.write(f"<button class='btn active src-b' data-s='{s}' onclick='t(\"{s}\",this)'>{s.upper()}</button>")
         f.write("</div>")
         
-        # Section Dates
         f.write("<span class='label'>DATES :</span><div>")
         f.write("<button class='btn active date-b' onclick='sd(\"all\",this)'>TOUTES</button>")
         for d in date_list:
-            f.write(f<button class='btn date-b' onclick='sd(\"{d}\",this)'>{d}</button>")
+            # Correction ici : ajout du guillemet f"
+            f.write(f"<button class='btn date-b' onclick='sd(\"{d}\",this)'>{d}</button>")
         f.write("</div></div>")
 
         f.write("<div id='feed'>")
@@ -99,39 +97,10 @@ def main():
             
         f.write("</div><script>")
         f.write(f"let acts=new Set({json.dumps(src_list)}); let selD='all';")
-        
-        # Fonction pour changer la date
-        f.write("""
-        function sd(d, b) {
-            selD = d;
-            document.querySelectorAll('.date-b').forEach(btn => btn.classList.remove('active'));
-            b.classList.add('active');
-            f();
-        }
-        """)
-
+        f.write("function sd(d,b){selD=d;document.querySelectorAll('.date-b').forEach(x=>x.classList.remove('active'));b.classList.add('active');f()}")
         f.write("function t(s,b){if(acts.has(s)){acts.delete(s);b.classList.remove('active')}else{acts.add(s);b.classList.add('active')}f()}")
-        
         f.write("function mass(v){const btns=document.querySelectorAll('.src-b');btns.forEach(b=>{const s=b.getAttribute('data-s');if(v){acts.add(s);b.classList.add('active')}else{acts.clear();b.classList.remove('active')}});f()}")
-        
-        # Fonction de filtrage combinée (Source + Recherche + Date)
-        f.write("""
-        function f() {
-            let q = document.getElementById('q').value.toLowerCase();
-            document.querySelectorAll('.article').forEach(a => {
-                let txt = a.innerText.toLowerCase();
-                let s = a.getAttribute('data-s');
-                let d = a.getAttribute('data-dt');
-                
-                let matchS = acts.has(s);
-                let matchQ = txt.includes(q);
-                let matchD = (selD === 'all' || d === selD);
-                
-                a.classList.toggle('hidden', !(matchS && matchQ && matchD));
-            });
-        }
-        """)
-        f.write("</script></body></html>")
+        f.write("function f(){let q=document.getElementById('q').value.toLowerCase();document.querySelectorAll('.article').forEach(a=>{let txt=a.innerText.toLowerCase();let s=a.getAttribute('data-s');let d=a.getAttribute('data-dt');let matchS=acts.has(s);let matchQ=txt.includes(q);let matchD=(selD==='all'||d===selD);a.classList.toggle('hidden',!(matchS&&matchQ&&matchD))})}</script></body></html>")
 
 if __name__ == "__main__":
     main()
