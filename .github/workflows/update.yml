@@ -1,0 +1,25 @@
+name: Update
+on:
+  schedule:
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Run
+        run: python main.py
+      - name: Deploy
+        run: |
+          git config --global user.name "Bot"
+          git config --global user.email "bot@github.com"
+          git add index.html
+          git commit -m "Update" || exit 0
+          git push
