@@ -7,8 +7,8 @@ import re
 import os
 
 # CONFIGURATION
-MAX_ARTICLES = 1000 # On monte à 1000 comme convenu
-ARCHIVE_HOUR_JST = 4 # Heure du Japon pour créer l'archive quotidienne (04:00 AM)
+MAX_ARTICLES = 1000 
+ARCHIVE_HOUR_JST = 4 # 04:00 AM au Japon
 
 SOURCES = [
     {"name": "Mainichi", "url": "https://mainichi.jp/shakai/", "type": "html", "sel": "section.articlelist"},
@@ -31,7 +31,6 @@ def clean_mainichi_title(text):
 def get_current_news():
     articles = {}
     headers = {"User-Agent": "Mozilla/5.0"}
-    # Date formatée pour le stockage (Japon)
     jst_now = datetime.utcnow() + timedelta(hours=9)
     date_str = jst_now.strftime("%d/%m/%Y")
     
@@ -40,7 +39,7 @@ def get_current_news():
             temp = []
             if src["type"] == "rss":
                 d = feedparser.parse(src["url"])
-                for e in d.entries[:20]:
+                for e in d.entries[:15]:
                     summ = BeautifulSoup(e.summary, "html.parser").get_text()[:200] if 'summary' in e else ""
                     temp.append({"t": e.title, "l": e.link, "d": summ})
             else:
@@ -69,11 +68,11 @@ def get_current_news():
     return articles
 
 def write_html(filename, data, is_archive=False):
-    now_full = (datetime.utcnow() + timedelta(hours=9)).strftime("%d/%m %H:%M")
+    jst_now = datetime.utcnow() + timedelta(hours=9)
+    now_full = jst_now.strftime("%d/%m %H:%M")
     src_list = sorted(list(set(a['s'] for a in data)))
     date_list = sorted(list(set(a['dt'] for a in data)), reverse=True)
     
-    # Récupérer la liste des fichiers dans archives/ pour le menu
     arch_files = []
     if os.path.exists("archives"):
         arch_files = sorted([f for f in os.listdir("archives") if f.endswith(".html")], reverse=True)
@@ -86,9 +85,9 @@ def write_html(filename, data, is_archive=False):
         f.write("<div class='header'>")
         f.write(f"<h1>{'📂 ARCHIVE : ' + data[0]['dt'] if is_archive else '🇯🇵 Japan News Raw'}</h1>")
         if not is_archive: f.write(f"<div style='font-size:0.7rem;color:gray'>Mise à jour JST : {now_full}</div>")
-        else: f.write("<a href='../index.html' style='font-size:0.9rem;color:#1a73e8'>← Retour au Live</a>")
+        else: f.write("<a href='../index.html' style='font-size:0.9rem;color:#1a73e8;font-weight:bold;display:block;margin-bottom:10px'>← Retour au Live</a>")
         
-        f.write("<input type='text' id='q' placeholder='Rechercher...' style='width:100%;padding:12px;border-radius:8px;border:1px solid #ddd;box-sizing:border-box;margin-top:10px' onkeyup='f()'>")
+        f.write("<input type='text' id='q' placeholder='Rechercher...' style='width:100%;padding:12px;border-radius:8px;border:1px solid #ddd;box-sizing:border-box' onkeyup='f()'>")
         
         f.write("<span class='label'>RECHERCHER DANS :</span><div><button class='btn btn-scope active' onclick='sc(\"all\",this)'>Titre+Texte</button><button class='btn btn-scope' onclick='sc(\"t\",this)'>Titre</button><button class='btn btn-scope' onclick='sc(\"d\",this)'>Texte</button></div>")
         
@@ -96,8 +95,8 @@ def write_html(filename, data, is_archive=False):
         
         if arch_files and not is_archive:
             f.write("<span class='label'>HISTORIQUE :</span><div style='overflow-x:auto;white-space:nowrap;'>")
-            for af in arch_files[:7]: # 7 derniers jours
-                f.write(f"<a href='archives/{af}' style='display:inline-block;font-size:0.8rem;margin-right:10px;color:#1a73e8'>{af.replace('.html','')}</a>")
+            for af in arch_files[:7]:
+                f.write(f"<a href='archives/{af}' style='display:inline-block;font-size:0.8rem;margin-right:10px;color:#1a73e8;text-decoration:none;background:#eef6ff;padding:4px 8px;border-radius:5px'>{af.replace('.html','')}</a>")
             f.write("</div>")
 
         f.write("<span class='label'>JOURNAUX :</span><div>")
@@ -111,37 +110,36 @@ def write_html(filename, data, is_archive=False):
             
         f.write("</div><div id='feed'>")
         for a in data:
-            f.write(f"<div class='article' data-s='{a['s']}' data-dt='{a['dt']}' data-orig-t='{a['t'].replace(chr(39),chr(32))}'><div style='font-size:0.7rem;color:#1a73e8;font-weight:bold'>{a['s']} | {a['dt']}</div><a href='{a['l']}' target='_blank'>{a['t']}</a>")
+            f.write(f"<div class='article' data-s='{a['s']}' data-dt='{a['dt']}' data-orig-t='{a['t'].replace(chr(39),chr(32))}'><div style='font-size:0.7rem;color:#1a73e8;font-weight:bold;margin-bottom:5px'>{a['s']} | {a['dt']}</div><a href='{a['l']}' target='_blank'>{a['t']}</a>")
             if a['d']: f.write(f"<div class='summary'>{a['d']}</div>")
             f.write("<div class='ex'></div></div>")
         
         f.write(f"</div><script>let acts=new Set({json.dumps(src_list)});let selD='all';let sm=true;let scope='all';function tgSm(){{sm=!sm;const b=document.getElementById('smBtn');b.innerText='Regroupement : '+(sm?'ON':'OFF');b.style.background=sm?'#34a853':'#6c757d';f()}}function sc(s,b){{scope=s;document.querySelectorAll('.btn-scope').forEach(x=>x.classList.remove('active'));b.classList.add('active');f()}}function sd(d,b){{selD=d;document.querySelectorAll('.date-b').forEach(x=>x.classList.remove('active'));b.classList.add('active');f()}}function t(s,b){{if(acts.has(s))acts.delete(s);else acts.add(s);b.classList.toggle('active');f()}}function mass(v){{const btns=document.querySelectorAll('.src-b');btns.forEach(b=>{{const s=b.getAttribute('data-s');if(v){{acts.add(s);b.classList.add('active')}}else{{acts.clear();b.classList.remove('active')}}}});f()}}function getSim(s1,s2){{let x=new Set(s1.split(' ')),y=new Set(s2.split(' '));let i=new Set([...x].filter(z=>y.has(z)));return i.size/Math.max(x.size,y.size)}}function f(){{let q=document.getElementById('q').value.toLowerCase();let arts=Array.from(document.querySelectorAll('.article'));arts.forEach(a=>{{a.classList.remove('hidden');a.querySelector('.ex').innerHTML=''}});let seen=[];arts.forEach(a=>{{let s=a.getAttribute('data-s'),d=a.getAttribute('data-dt'),titleEl=a.querySelector('a'),descEl=a.querySelector('.summary'),tTxt=titleEl?titleEl.innerText.toLowerCase():'',dTxt=descEl?descEl.innerText.toLowerCase():'',matchQ=false;if(scope==='all')matchQ=tTxt.includes(q)||dTxt.includes(q);else if(scope==='t')matchQ=tTxt.includes(q);else matchQ=dTxt.includes(q);let v=acts.has(s)&&(selD==='all'||d===selD)&&matchQ;if(v&&sm){{let curT=a.getAttribute('data-orig-t');let dupe=seen.find(x=>getSim(x.t,curT)>0.6);if(dupe){{v=false;dupe.e.querySelector('.ex').innerHTML='<span style=\"background:#ffd400;color:black;font-size:0.7rem;padding:3px 8px;border-radius:5px;font-weight:bold;margin-top:10px;display:inline-block\">+ Sujet similaire</span>'}}else{{seen.push({{t:curT,e:a}})}}}}if(!v)a.classList.add('hidden')}})}}window.onload=f</script></body></html>")
 
 def main():
-    # 1. Charger l'historique complet
+    # S'assurer que le dossier archives existe pour éviter les erreurs GitHub
+    os.makedirs("archives", exist_ok=True)
+
     if os.path.exists("data.json"):
         with open("data.json", "r", encoding="utf-8") as f:
             all_articles = json.load(f)
     else:
         all_articles = {}
 
-    # 2. Chercher les nouvelles news
     new_news = get_current_news()
     all_articles.update(new_news)
     
-    # 3. Sauvegarder data.json
     with open("data.json", "w", encoding="utf-8") as f:
         json.dump(all_articles, f, ensure_ascii=False)
 
-    # 4. Préparer le Live (index.html) - les 1000 derniers
     sorted_keys = sorted(all_articles.keys(), reverse=True)[:MAX_ARTICLES]
     live_data = [all_articles[k] for k in sorted_keys]
     write_html("index.html", live_data, is_archive=False)
 
-    # 5. Logique d'archivage quotidien (JST)
     jst_now = datetime.utcnow() + timedelta(hours=9)
     if jst_now.hour == ARCHIVE_HOUR_JST:
         yesterday = (jst_now - timedelta(days=1)).strftime("%d/%m/%Y")
+        # Formatage du nom de fichier pour Windows/Web compatible
         archive_filename = f"archives/{yesterday.replace('/','-')}.html"
         
         if not os.path.exists(archive_filename):
