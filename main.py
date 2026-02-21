@@ -33,6 +33,8 @@ def get_current_news():
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     jst_now = datetime.utcnow() + timedelta(hours=9)
     date_str = jst_now.strftime("%d/%m/%Y")
+    ts_str = jst_now.strftime("%Y-%m-%d %H:%M:%S") # Timestamp pour le tri
+    
     for src in SOURCES:
         try:
             temp = []
@@ -54,25 +56,31 @@ def get_current_news():
                     if len(tit) > 30 and ("/articles/" in url or "rss" not in url):
                         if "mainichi.jp" in url: tit = clean_mainichi_title(tit)
                         par = a.find_parent(['div', 'li', 'article', 'section'])
-                        desc = par.find(['p', 'div', 'span'], class_=re.compile(r'txt|summary|content|body|lead')).get_text().strip()[:200] if par and par.find(['p','div','span'], class_=re.compile(r'txt|summary|content|body|lead')) else ""
+                        desc = ""
+                        if par:
+                            p_tag = par.find(['p', 'div', 'span'], class_=re.compile(r'txt|summary|content|body|lead'))
+                            if not p_tag: p_tag = par.find('p')
+                            if p_tag: desc = p_tag.get_text().strip()[:200]
                         temp.append({"t": tit, "l": url, "d": desc})
             for i in temp[:15]:
                 if i["l"] not in articles:
-                    articles[i["l"]] = {"t": i['t'], "d": i['d'], "l": i["l"], "s": src["name"], "dt": date_str}
+                    articles[i["l"]] = {
+                        "t": i['t'], "d": i['d'], "l": i["l"], 
+                        "s": src["name"], "dt": date_str, "ts": ts_str
+                    }
         except: print(f"Erreur {src['name']}")
     return articles
 
 def write_html(filename, data, is_archive=False):
     jst_now = datetime.utcnow() + timedelta(hours=9)
-    now_full = jst_now.strftime("%H:%M")
+    now_full = jst_now.strftime("%d/%m %H:%M")
     src_list = sorted(list(set(a['s'] for a in data)))
     date_list = sorted(list(set(a['dt'] for a in data)), reverse=True)
     arch_files = sorted([f for f in os.listdir("archives") if f.endswith(".html")], reverse=True) if os.path.exists("archives") else []
 
     with open(filename, "w", encoding="utf-8") as f:
         f.write("<!DOCTYPE html><html lang='ja'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>")
-        f.write("<title>Japan News Pro</title><style>")
-        # STYLE SANS BANDEAU FIXE (CLASSIQUE)
+        f.write("<title>Japan News Chrono</title><style>")
         f.write("body{font-family:sans-serif;background:#f0f2f5;margin:0;padding:10px;color:#1c1e21}")
         f.write(".header{background:white;padding:15px;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,0.05);margin-bottom:20px}")
         f.write("h1{font-size:1.3rem;margin:0 0 10px 0;display:inline-block}.update-time{font-size:0.75rem;color:gray;float:right}")
@@ -110,7 +118,7 @@ def write_html(filename, data, is_archive=False):
             for af in arch_files[:5]: f.write(f"<a href='archives/{af}' class='btn' style='text-decoration:none;color:#1a73e8'>{af.replace('.html','')[:5]}</a>")
         f.write("</div>")
         
-        if is_archive: f.write(f"<div style='margin-top:10px'><a href='../index.html' class='btn' style='display:inline-block;text-decoration:none;background:#eef6ff;color:#1a73e8'>← Retour au Live</a></div>")
+        if is_archive: f.write(f"<div style='margin-top:10px'><a href='../index.html' class='btn' style='display:inline-block;text-decoration:none;background:#eef6ff;color:#1a73e8'>← Retour</a></div>")
         f.write("</div>")
 
         f.write("<div id='feed'>")
@@ -135,19 +143,37 @@ def write_html(filename, data, is_archive=False):
 def main():
     os.makedirs("archives", exist_ok=True)
     all_articles = json.load(open("data.json", "r", encoding="utf-8")) if os.path.exists("data.json") else {}
+    
     new_news = get_current_news()
-    all_articles.update(new_news)
+    
+    # Fusion intelligente pour garder les timestamps originaux
+    for url, data in new_news.items():
+        if url not in all_articles:
+            all_articles[url] = data
+        else:
+            # On met à jour le contenu mais on garde le timestamp initial de découverte
+            old_ts = all_articles[url].get('ts')
+            all_articles[url].update(data)
+            if old_ts: all_articles[url]['ts'] = old_ts
+
     json.dump(all_articles, open("data.json", "w", encoding="utf-8"), ensure_ascii=False)
-    sorted_keys = sorted(all_articles.keys(), reverse=True)[:MAX_ARTICLES]
-    live_data = [all_articles[k] for k in sorted_keys]
+    
+    # TRI PAR TIMESTAMP (ts) - Du plus récent au plus ancien
+    sorted_articles = sorted(all_articles.values(), key=lambda x: x.get('ts', ''), reverse=True)
+    
+    live_data = sorted_articles[:MAX_ARTICLES]
     write_html("index.html", live_data, is_archive=False)
+    
     jst_now = datetime.utcnow() + timedelta(hours=9)
     if jst_now.hour == ARCHIVE_HOUR_JST:
         yesterday = (jst_now - timedelta(days=1)).strftime("%d/%m/%Y")
         archive_filename = f"archives/{yesterday.replace('/','-')}.html"
         if not os.path.exists(archive_filename):
             day_data = [a for a in all_articles.values() if a['dt'] == yesterday]
-            if day_data: write_html(archive_filename, day_data, is_archive=True)
+            if day_data: 
+                # On trie aussi l'archive par heure
+                day_data_sorted = sorted(day_data, key=lambda x: x.get('ts', ''), reverse=True)
+                write_html(archive_filename, day_data_sorted, is_archive=True)
 
 if __name__ == "__main__":
     main()
