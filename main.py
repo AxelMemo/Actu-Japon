@@ -153,4 +153,5 @@ def main():
             day_data = [a for a in all_articles.values() if a['dt'] == yesterday]
             if day_data: write_html(archive_filename, day_data, is_archive=True)
 
-if __name_
+if __name__ == "__main__":
+    main()
