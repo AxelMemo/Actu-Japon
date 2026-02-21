@@ -54,11 +54,7 @@ def get_current_news():
                     if len(tit) > 30 and ("/articles/" in url or "rss" not in url):
                         if "mainichi.jp" in url: tit = clean_mainichi_title(tit)
                         par = a.find_parent(['div', 'li', 'article', 'section'])
-                        desc = ""
-                        if par:
-                            p_tag = par.find(['p', 'div', 'span'], class_=re.compile(r'txt|summary|content|body|lead'))
-                            if not p_tag: p_tag = par.find('p')
-                            if p_tag: desc = p_tag.get_text().strip()[:200]
+                        desc = par.find(['p', 'div', 'span'], class_=re.compile(r'txt|summary|content|body|lead')).get_text().strip()[:200] if par and par.find(['p','div','span'], class_=re.compile(r'txt|summary|content|body|lead')) else ""
                         temp.append({"t": tit, "l": url, "d": desc})
             for i in temp[:15]:
                 if i["l"] not in articles:
@@ -75,38 +71,38 @@ def write_html(filename, data, is_archive=False):
 
     with open(filename, "w", encoding="utf-8") as f:
         f.write("<!DOCTYPE html><html lang='ja'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>")
-        f.write("<title>Japan News</title><style>")
-        # STYLE NON-STICKY
+        f.write("<title>Japan News Pro</title><style>")
+        # STYLE SANS BANDEAU FIXE (CLASSIQUE)
         f.write("body{font-family:sans-serif;background:#f0f2f5;margin:0;padding:10px;color:#1c1e21}")
         f.write(".header{background:white;padding:15px;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,0.05);margin-bottom:20px}")
         f.write("h1{font-size:1.3rem;margin:0 0 10px 0;display:inline-block}.update-time{font-size:0.75rem;color:gray;float:right}")
         f.write(".label{font-size:0.7rem;font-weight:bold;color:#65676b;margin:10px 0 5px 0;text-transform:uppercase}")
-        f.write(".scroll-x{display:flex;overflow-x:auto;white-space:nowrap;gap:5px;padding-bottom:5px;scrollbar-width:none} .scroll-x::-webkit-scrollbar{display:none}")
-        f.write(".btn{padding:8px 14px;border-radius:8px;border:1px solid #ddd;background:white;cursor:pointer;font-size:0.85rem;font-weight:bold;flex-shrink:0}")
+        f.write(".btn-container{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:5px}")
+        f.write(".btn{padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:white;cursor:pointer;font-size:0.85rem;font-weight:bold}")
         f.write(".btn.active{background:#1a73e8;color:white;border-color:#1a73e8} .btn-scope.active{background:#ffb300;color:black} .btn-util{background:#6c757d;color:white;border:none}")
         f.write(".article{background:white;padding:20px;margin-bottom:15px;border-radius:10px;border-top:5px solid #1a73e8;box-shadow:0 1px 3px rgba(0,0,0,0.1)}")
-        f.write(".hidden{display:none!important} a{text-decoration:none;color:#000;font-weight:800;display:block;font-size:1.25rem;margin-bottom:10px;line-height:1.3}")
+        f.write(".hidden{display:none!important} a{text-decoration:none;color:#000;font-weight:800;display:block;font-size:1.3rem;margin-bottom:10px;line-height:1.3}")
         f.write(".summary{font-size:0.95rem;color:#444;background:#f8f9fa;padding:12px;border-radius:8px;line-height:1.5}</style></head><body>")
         
         f.write("<div class='header'>")
-        f.write(f"<h1>🇯🇵 News</h1> <span class='update-time'>Actualisé à {now_full} (JST)</span>")
+        f.write(f"<h1>🇯🇵 News</h1> <span class='update-time'>JST: {now_full}</span>")
         f.write("<input type='text' id='q' placeholder='Rechercher...' style='width:100%;padding:12px;border-radius:8px;border:1px solid #ddd;box-sizing:border-box' onkeyup='f()'>")
         
-        f.write("<div class='label'>Rechercher dans :</div><div class='scroll-x'>")
+        f.write("<div class='label'>Rechercher dans :</div><div class='btn-container'>")
         f.write("<button class='btn btn-scope active' onclick='sc(\"all\",this)'>Titre+Texte</button>")
         f.write("<button class='btn btn-scope' onclick='sc(\"t\",this)'>Titre</button>")
         f.write("<button class='btn btn-scope' onclick='sc(\"d\",this)'>Texte</button></div>")
 
-        f.write("<div class='scroll-x' style='margin-top:10px'>")
+        f.write("<div class='btn-container' style='margin-top:10px'>")
         f.write("<button class='btn' id='smBtn' onclick='tgSm()' style='background:#34a853;color:white'>Regroupement : ON</button>")
         f.write("<button class='btn btn-util' onclick='mass(true)'>TOUT COCHER</button>")
         f.write("<button class='btn btn-util' onclick='mass(false)'>TOUT DÉCOCHER</button></div>")
         
-        f.write("<div class='label'>Journaux :</div><div class='scroll-x'>")
+        f.write("<div class='label'>Journaux :</div><div class='btn-container'>")
         for s in src_list: f.write(f"<button class='btn active src-b' data-s='{s}' onclick='t(\"{s}\",this)'>{s.upper()}</button>")
         f.write("</div>")
         
-        f.write("<div class='label'>Dates :</div><div class='scroll-x'>")
+        f.write("<div class='label'>Dates :</div><div class='btn-container'>")
         if not is_archive:
             f.write("<button class='btn active date-b' onclick='sd(\"all\",this)'>TOUTES</button>")
             for d in date_list: f.write(f"<button class='btn date-b' onclick='sd(\"{d}\",this)'>{d.split('/')[0]+'/'+d.split('/')[1]}</button>")
@@ -114,7 +110,7 @@ def write_html(filename, data, is_archive=False):
             for af in arch_files[:5]: f.write(f"<a href='archives/{af}' class='btn' style='text-decoration:none;color:#1a73e8'>{af.replace('.html','')[:5]}</a>")
         f.write("</div>")
         
-        if is_archive: f.write(f"<div style='margin-top:10px'><a href='../index.html' class='btn' style='display:inline-block;text-decoration:none'>← Retour au Live</a></div>")
+        if is_archive: f.write(f"<div style='margin-top:10px'><a href='../index.html' class='btn' style='display:inline-block;text-decoration:none;background:#eef6ff;color:#1a73e8'>← Retour au Live</a></div>")
         f.write("</div>")
 
         f.write("<div id='feed'>")
