@@ -74,11 +74,11 @@ def main():
         f.write("<div class='header'><h1>🇯🇵 Japan News Raw</h1>")
         f.write("<input type='text' id='q' placeholder='Rechercher...' style='width:100%;padding:12px;border-radius:8px;border:1px solid #ddd;box-sizing:border-box' onkeyup='f()'>")
         
-        # Section Recherche Dans (Scope)
+        # Section Recherche Dans (Labels modifiés ici)
         f.write("<span class='label'>RECHERCHER DANS :</span><div>")
-        f.write("<button class='btn btn-scope active' onclick='sc(\"all\",this)'>TITRE + RÉSUMÉ</button>")
-        f.write("<button class='btn btn-scope' onclick='sc(\"t\",this)'>TITRE UNIQUEMENT</button>")
-        f.write("<button class='btn btn-scope' onclick='sc(\"d\",this)'>RÉSUMÉ UNIQUEMENT</button></div>")
+        f.write("<button class='btn btn-scope active' onclick='sc(\"all\",this)'>Titre+Texte</button>")
+        f.write("<button class='btn btn-scope' onclick='sc(\"t\",this)'>Titre</button>")
+        f.write("<button class='btn btn-scope' onclick='sc(\"d\",this)'>Texte</button></div>")
 
         # Section Outils
         f.write("<div style='margin-top:10px'><button class='btn btn-smart' id='smBtn' onclick='tgSm()'>Regroupement : ON</button>")
@@ -127,7 +127,6 @@ def main():
                 let titleEl = a.querySelector('.art-title');
                 let descEl = a.querySelector('.art-desc');
                 
-                // Recherche dans le texte visible (pour gérer la traduction Chrome)
                 let tTxt = titleEl ? titleEl.innerText.toLowerCase() : "";
                 let dTxt = descEl ? descEl.innerText.toLowerCase() : "";
                 
