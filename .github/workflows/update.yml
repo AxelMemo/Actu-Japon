@@ -20,6 +20,6 @@ jobs:
         run: |
           git config --global user.name "Bot"
           git config --global user.email "bot@github.com"
-          git add index.html
-          git commit -m "Update" || exit 0
+          git add index.html data.json archives/*.html  # AJOUT DES ARCHIVES ICI
+          git commit -m "Update and Archive" || exit 0
           git push
