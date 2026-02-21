@@ -1,27 +1,32 @@
 name: Update
 on:
   schedule:
-    - cron: '0 * * * *'
-  workflow_dispatch:
+    - cron: '0 * * * *'  # Le robot passe toutes les heures
+  workflow_dispatch:      # <--- C'EST CETTE LIGNE QUI CRÉE LE BOUTON "RUN WORKFLOW"
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
           python-version: '3.9'
+          
       - name: Install
         run: pip install -r requirements.txt
+        
       - name: Run
         run: python main.py
+        
       - name: Deploy
         run: |
-       git config --global user.name "Bot"
+          git config --global user.name "Bot"
           git config --global user.email "bot@github.com"
           git add index.html data.json
-          # On ajoute le dossier archives seulement s'il contient des fichiers
+          # On ajoute les archives sans bloquer si le dossier est vide
           git add archives/*.html || echo "Pas encore d'archives à ajouter"
           git commit -m "Update and Archive" || exit 0
           git push
