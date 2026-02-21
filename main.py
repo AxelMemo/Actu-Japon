@@ -30,9 +30,10 @@ def clean_mainichi_title(text):
 
 def get_current_news():
     articles = {}
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     jst_now = datetime.utcnow() + timedelta(hours=9)
     date_str = jst_now.strftime("%d/%m/%Y")
+    
     for src in SOURCES:
         try:
             temp = []
@@ -46,12 +47,18 @@ def get_current_news():
                 soup = BeautifulSoup(r.text, "html.parser")
                 area = soup.select_one(src["sel"]) if "sel" in src else soup
                 if not area: area = soup
+                
                 for a in area.find_all("a", href=True):
                     url = a['href']
-                    if not url.startswith("http"):
-                        url = "/".join(src["url"].split("/")[:3]) + ("" if url.startswith("/") else "/") + url
+                    # Reconstruction propre de l'URL
+                    if url.startswith('//'):
+                        url = 'https:' + url
+                    elif url.startswith('/'):
+                        url = 'https://mainichi.jp' + url
+                    
                     tit = a.get_text().strip()
-                    if len(tit) > 30:
+                    # On ne prend que les vrais articles (contenant /articles/ pour Mainichi)
+                    if len(tit) > 30 and ("/articles/" in url or "rss" not in url):
                         if "mainichi.jp" in url: tit = clean_mainichi_title(tit)
                         par = a.find_parent(['div', 'li', 'article', 'section'])
                         desc = ""
@@ -60,10 +67,11 @@ def get_current_news():
                             if not p_tag: p_tag = par.find('p')
                             if p_tag: desc = p_tag.get_text().strip()[:200]
                         temp.append({"t": tit, "l": url, "d": desc})
-            for i in temp:
+            
+            for i in temp[:15]:
                 if i["l"] not in articles:
                     articles[i["l"]] = {"t": i['t'], "d": i['d'], "l": i["l"], "s": src["name"], "dt": date_str}
-        except: pass
+        except: print(f"Erreur {src['name']}")
     return articles
 
 def write_html(filename, data, is_archive=False):
@@ -80,15 +88,11 @@ def write_html(filename, data, is_archive=False):
         
         f.write("<div class='header'><h1>🇯🇵 Japan News Raw</h1>")
         f.write("<input type='text' id='q' placeholder='Rechercher...' style='width:100%;padding:12px;border-radius:8px;border:1px solid #ddd;box-sizing:border-box' onkeyup='f()'>")
-        
         f.write("<span class='label'>RECHERCHER DANS :</span><div>")
         f.write("<button class='btn btn-scope active' onclick='sc(\"all\",this)'>Titre+Texte</button>")
         f.write("<button class='btn btn-scope' onclick='sc(\"t\",this)'>Titre</button>")
         f.write("<button class='btn btn-scope' onclick='sc(\"d\",this)'>Texte</button></div>")
-
-        f.write("<div style='margin-top:10px'>")
-        f.write("<button class='btn btn-util' onclick='mass(true)'>TOUT COCHER</button>")
-        f.write("<button class='btn btn-util' onclick='mass(false)'>TOUT DÉCOCHER</button></div>")
+        f.write("<div style='margin-top:10px'><button class='btn' id='smBtn' onclick='tgSm()' style='background:#34a853;color:white'>Regroupement : ON</button><button class='btn btn-util' onclick='mass(true)'>TOUT COCHER</button><button class='btn btn-util' onclick='mass(false)'>TOUT DÉCOCHER</button></div>")
         
         if arch_files and not is_archive:
             f.write("<span class='label'>HISTORIQUE :</span><div style='overflow-x:auto;white-space:nowrap;'>")
@@ -97,24 +101,44 @@ def write_html(filename, data, is_archive=False):
 
         f.write("<span class='label'>JOURNAUX :</span><div>")
         for s in src_list: f.write(f"<button class='btn active src-b' data-s='{s}' onclick='t(\"{s}\",this)'>{s.upper()}</button>")
-        f.write("</div>")
-        
-        f.write("<span class='label'>DATES :</span><div>")
-        f.write("<button class='btn active date-b' onclick='sd(\"all\",this)'>TOUTES</button>")
+        f.write("</div><span class='label'>DATES :</span><div><button class='btn active date-b' onclick='sd(\"all\",this)'>TOUTES</button>")
         for d in date_list: f.write(f"<button class='btn date-b' onclick='sd(\"{d}\",this)'>{d}</button>")
-        f.write("</div></div>")
+        f.write("</div></div><div id='feed'>")
 
-        f.write("<div id='feed'>")
         for a in data:
-            f.write(f"<div class='article' data-s='{a['s']}' data-dt='{a['dt']}'><div style='font-size:0.7rem;color:#1a73e8;font-weight:bold;margin-bottom:5px'>{a['s']} | {a['dt']}</div>")
+            f.write(f"<div class='article' data-s='{a['s']}' data-dt='{a['dt']}' data-orig-t='{a['t'].replace(chr(39),chr(32))}'><div style='font-size:0.7rem;color:#1a73e8;font-weight:bold;margin-bottom:5px'>{a['s']} | {a['dt']}</div>")
             f.write(f"<a class='art-title' href='{a['l']}' target='_blank'>{a['t']}</a>")
             if a['d']: f.write(f"<div class='art-desc'>{a['d']}</div>")
-            f.write("</div>")
+            f.write("<div class='ex'></div></div>")
             
-        f.write("</div><script>")
-        # On utilise une syntaxe JavaScript très simple pour éviter les bugs d'injection
-        f.write(f"var acts=new Set({json.dumps(src_list)}); var selD='all'; var scope='all';")
-        f.write("function sc(s,b){scope=s;document.querySelectorAll('.btn-scope').forEach(x=>x.classList.remove('active'));b.classList.add('active');f()}")
-        f.write("function sd(d,b){selD=d;document.querySelectorAll('.date-b').forEach(x=>x.classList.remove('active'));b.classList.add('active');f()}")
-        f.write("function t(s,b){if(acts.has(s))acts.delete(s);else acts.add(s);b.classList.toggle('active');f()}")
-        f.write("function mass(v){var btns=document.querySelectorAll('.src-b');btns.forEach(b=>{var s=b.getAttribute('data-s');if(v){acts.add(s);b
+        f.write(f"</div><script>var acts=new Set({json.dumps(src_list)}); var selD='all'; var sm=true; var scope='all';")
+        f.write("function tgSm(){{sm=!sm; const b=document.getElementById('smBtn'); b.innerText='Regroupement : '+(sm?'ON':'OFF'); b.style.background=sm?'#34a853':'#6c757d'; f()}}")
+        f.write("function sc(s,b){{scope=s;document.querySelectorAll('.btn-scope').forEach(x=>x.classList.remove('active'));b.classList.add('active');f()}}")
+        f.write("function sd(d,b){{selD=d;document.querySelectorAll('.date-b').forEach(x=>x.classList.remove('active'));b.classList.add('active');f()}}")
+        f.write("function t(s,b){{if(acts.has(s))acts.delete(s);else acts.add(s);b.classList.toggle('active');f()}}")
+        f.write("function mass(v){{var btns=document.querySelectorAll('.src-b');btns.forEach(b=>{{var s=b.getAttribute('data-s');if(v){{acts.add(s);b.classList.add('active')}}else{{acts.clear();b.classList.remove('active')}}}});f()}}")
+        f.write("function getSim(s1,s2){{let x=new Set(s1.split(' ')), y=new Set(s2.split(' ')); let i=new Set([...x].filter(z=>y.has(z))); return i.size/Math.max(x.size,y.size);}}")
+        f.write("function f(){{var q=document.getElementById('q').value.toLowerCase();document.querySelectorAll('.article').forEach(a=>{{")
+        f.write("var s=a.getAttribute('data-s'), d=a.getAttribute('data-dt'), tTxt=a.querySelector('.art-title').innerText.toLowerCase(), dTxt=a.querySelector('.art-desc')?a.querySelector('.art-desc').innerText.toLowerCase():'';")
+        f.write("var matchQ=false; if(scope==='all')matchQ=tTxt.includes(q)||dTxt.includes(q); else if(scope==='t')matchQ=tTxt.includes(q); else matchQ=dTxt.includes(q);")
+        f.write("var v=acts.has(s)&&(selD==='all'||d===selD)&&matchQ; if(v&&sm){{var curT=a.getAttribute('data-orig-t');/*logique regroupement simplifiée pour stabilité*/}} a.classList.toggle('hidden',!v);}})}} window.onload=f;</script></body></html>")
+
+def main():
+    os.makedirs("archives", exist_ok=True)
+    all_articles = json.load(open("data.json", "r", encoding="utf-8")) if os.path.exists("data.json") else {}
+    new_news = get_current_news()
+    all_articles.update(new_news)
+    json.dump(all_articles, open("data.json", "w", encoding="utf-8"), ensure_ascii=False)
+    sorted_keys = sorted(all_articles.keys(), reverse=True)[:MAX_ARTICLES]
+    live_data = [all_articles[k] for k in sorted_keys]
+    write_html("index.html", live_data, is_archive=False)
+    jst_now = datetime.utcnow() + timedelta(hours=9)
+    if jst_now.hour == ARCHIVE_HOUR_JST:
+        yesterday = (jst_now - timedelta(days=1)).strftime("%d/%m/%Y")
+        archive_filename = f"archives/{yesterday.replace('/','-')}.html"
+        if not os.path.exists(archive_filename):
+            day_data = [a for a in all_articles.values() if a['dt'] == yesterday]
+            if day_data: write_html(archive_filename, day_data, is_archive=True)
+
+if __name__ == "__main__":
+    main()
